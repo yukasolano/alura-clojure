@@ -58,7 +58,7 @@
 (defn transfere-ignorando-erro
   [hospital para]
   (try (transfere hospital :espera para)
-       (catch ExceptionInfo e
+       (catch IllegalStateException e
          hospital)))
 
 ;testa a propriedade do nosso codigo de manter o numero de pessoas no transfere
