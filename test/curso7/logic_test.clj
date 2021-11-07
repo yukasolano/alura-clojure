@@ -83,11 +83,17 @@
               fila-nao-cheia-gen)))
 
 (def chega-em-gen
-  (gen/tuple (gen/return chega-em) (gen/return :espera) nome-aleatorio-gen))
+  (gen/tuple (gen/return chega-em)
+             (gen/return :espera)
+             nome-aleatorio-gen
+             (gen/return 1)))
 
 (defn transfere-gen [hospital]
   (let [departamentos (keys hospital)]
-    (gen/tuple (gen/return transfere) (gen/elements departamentos) (gen/elements departamentos))))
+    (gen/tuple (gen/return transfere)
+               (gen/elements departamentos)
+               (gen/elements departamentos)
+               (gen/return 0))))
 
 (defn acao-gen [hospital]
   (gen/one-of [chega-em-gen (transfere-gen hospital)]))
@@ -95,9 +101,19 @@
 (defn acoes-gen [hospital]
   (gen/not-empty (gen/vector (acao-gen hospital) 1 100)))
 
-(defspec simula-um-dia-do-hospital-nao-perde-pessoas 10
-         (prop/for-all [hospital hospital-gen]
-                       (let [acoes (gen/sample (acoes-gen hospital) 1)]
+(defn executa-uma-acao [{:keys [hospital diferenca] :as situacao} [funcao param1 param2 diferenca-se-sucesso]]
+  (try
+    (let [hopital-novo (funcao hospital param1 param2)]
+      {:hospital hopital-novo :diferenca (+ diferenca diferenca-se-sucesso)})
+    (catch IllegalStateException e
+      situacao)))
 
-                         (println acoes)
-                         (is (= 1 1)))))
+(defspec simula-um-dia-do-hospital-nao-perde-pessoas 10
+         (prop/for-all [hospital-inicial hospital-gen]
+                       (let [acoes (gen/generate (acoes-gen hospital-inicial))
+                             situacao-inicial {:hospital hospital-inicial :diferenca 0}
+                             total-pacientes-inicial (total-de-pacientes hospital-inicial)
+                             situacao-final (reduce executa-uma-acao situacao-inicial acoes)
+                             total-pacientes-final (total-de-pacientes (:hospital situacao-final))]
+                         (is (>= (- total-pacientes-final (:diferenca situacao-final))
+                                 total-pacientes-inicial)))))
